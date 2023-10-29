@@ -1,0 +1,616 @@
+# Exploratory Data Analysis and Multiple Linear Regression on Boston Housing Dataset
+
+This dataset contains information about 506 census tracts of Boston from the 1970 census. As an aspiring data scientist, understanding how to model data like this is of great importance to me. In this kernel, I will use the Boston housing data by Harrison and Rubinfeld (1979) and explore which factors affect the median value of homes. I will perform a linear regression analysis on the same.
+
+### Boston Housing Data
+
+You can include this data by using the 'MASS' library. The data has following features, medv being the target (dependent) variable:
+
+* crim - per capita crime rate by town
+* zn - proportion of residential land zoned for lots over 25,000 sq.ft
+* indus - proportion of non-retail business acres per town
+* chas - Charles River dummy variable (= 1 if tract bounds river; 0 otherwise)
+* nox - nitric oxides concentration (parts per 10 million)
+* rm - average number of rooms per dwelling
+* age - proportion of owner-occupied units built prior to 1940
+* dis - weighted distances to five Boston employment centres
+* rad - index of accessibility to radial highways
+* tax - full-value property-tax rate per USD 10,000
+* ptratio - pupil-teacher ratio by town
+* black - proportion of blacks by town
+* lstat - percentage of lower status of the population
+* medv - median value of owner-occupied homes in USD 1000’s
+
+```{r}
+library(MASS)
+housing <- Boston
+```
+
+#### Other libraries we may need:
+```{r}
+library(corrplot) #for visualisation of correlation
+library(lattice) #for visualisation
+library(ggplot2) #for visualisation
+library(caTools) #for splittind data into testing and training data
+library(dplyr) #manipulating dataframe
+library(plotly) #converting ggplot to plotly
+```
+
+### 2. Preparing the data
+Checking for NA and missing values and removing them
+
+```{r}
+numberOfNA <- length(which(is.na(housing)==T))
+if(numberOfNA>0) {
+  housing <- housing[complete.cases(housing),]
+}
+```
+
+Prepare the training and testing data
+
+```{r}
+set.seed(123)
+split <- sample.split(housing,SplitRatio = 0.80) #assigns booleans to a new coloumn based on the split ratio
+train <- subset(housing,split==TRUE)
+test <- subset(housing,split==FALSE)
+```
+
+
+### 3. Exploratory Data Analysis
+This is a crucial part and usually takes up most of the time. A proper and extensive EDA would reveal interesting patterns and help to prepare the data in a better way!
+
+Now let's perform some exploratory data analysis to understand how the variables of the data are related to one another.
+Now lets see the structure of different variables in the Boston Housing dataset:
+
+```{r}
+str(housing)
+```
+
+Here we can see that the variables 'chas' and 'rad' are non numeric
+A command called head gives you the top 6 rows of the dataset
+```{r}
+head(housing)
+```
+
+A command called summary gives you the basic statistics of your dataset like mean, median, 1st quartile, 2nd quartile etc.
+
+```{r}
+summary(housing)
+```
+
+Here we can see that variable 'crim' and 'black' take wide range of values.
+
+Variables 'crim', 'zn', 'rm' and 'black' have a large difference between their median and mean which indicates lot of outliers in respective variables.
+
+```{r}
+par(mfrow = c(1, 4))
+boxplot(housing$crim, main='crim',col='Sky Blue')
+boxplot(housing$zn, main='zn',col='Sky Blue')
+boxplot(housing$rm, main='rm',col='Sky Blue')
+boxplot(housing$black, main='black',col='Sky Blue')
+```
+As suggested earlier variables 'crim', 'zn', 'rm' and 'black' do have a lot of outliers.
+
+
+### Finding correlation
+Correlation is a statistical measure that suggests the level of linear dependence between two variables that occur in pair. Its value lies between -1 to +1
+* If above 0 it means positive correlation i.e. X is directly proportional to Y.
+* If below 0 it means negative correlation i.e. X is inversly proportional to Y.
+* Value 0 suggests weak relation.
+
+Usually we would use the function 'cor' to find correlation between two variables, but since we have 14 variables here, it is easier to examine the correlation between different varables using corrplot function in library 'corrplot'.
+
+Correlation plots are a great way of exploring data and seeing the level of interaction between the variables.
+
+```{r}
+corrplot(cor(housing))
+```
+
+Since this is a linear regression experiment which involves looking at how median value of homes in Boston vary with the different factors, it makes sense to see the trends of all the variables.
+
+Before moving on to analyzing linearity between 'medv' and different variables, there are few things we must know:
+
+#### Types of Linear Models in R
+![Imgur](https://i.imgur.com/ekopDzK.png)
+*source- Montefiore Institute*
+
+We will now try to find out the linearity between 'medv' and other variables keeping one thing in mind- "It is not worth complicating the model for a very small increase in Adjusted R-squared value"
+
+```{r}
+dropList <- c('chas','rad','crim','zn','black')
+#We drop chas and rad because they are non numeric
+#We drop crim, zn and black because they have lot of outliers
+housingplot <- housing[,!colnames(housing) %in% dropList]
+splom(housingplot,col = 'Sky Blue')
+```
+
+The first row of plot is the most useful. It indicates how different variables impact the median value of homes in Boston.
+
+Analyzing scatter plot and Adjusted R-squared values between medv and other variables for linearity we find that only 'lstat' has significantly high difference of Adjusted R-square between its squared model and linear model for it to be mathematically squared inside the model using the identity function (I).
+
+### 4. Building the model and accuracy analysis
+
+#### How to analyze a model
+In Linear Regression
+* The Null Hypothesis is that the coefficients associated with the variables are zero. 
+* The alternate hypothesis is that the coefficients are not equal to zero (i.e. there exists a relationship between the independent variable in question and the dependent variable).
+* If Pr(>|t|) value has 3 stars, it means that coeffecient is of very high statistical significance. Pr(>|t|) value less than 0.05 is considered as good.
+* Multiple R-squared measures the proportion of the variation in your dependent variable explained by all of your independent variables in the model.
+* Adjusted R-squared measures the proportion of variation explained by only those independent variables that really help in explaining the dependent variable. It penalizes you for adding independent variable that do not help in predicting the dependent variable.
+* If F-statistic is significant then Model is good (higher the value of F-statistic the better).
+* Our key objective is to determine the variable(s) that would give best predictive model.
+
+Let's begin by fitting all the variables.
+
+```{r}
+# Fitting Simple Linear regression
+# . is used to fit predictor using all independent variables
+lm.fit1 <- lm(medv~.,data=train)
+summary(lm.fit1)
+```
+
+#### Improvements
+* Variables 'age' and 'indus' have very high Pr(>|t|) value and low significance hence removing them could give us a better model.
+* As we noticed in EDA 'lstat' is non-linear and hence can be squared for a better fit.
+
+```{r}
+lm.fit2 <- lm(medv~.-age-indus+I(lstat^2),data=train)
+summary(lm.fit2)
+```
+
+#### Improvements
+* Variable 'zn' has very high Pr(>|t|) value and low significance hence removing it could give us a better model.
+* Interaction between highly significant variables could give us a better model.
+
+```{r}
+lm.fit3 <- lm(medv~.-indus-age-zn+rm*lstat-black+rm*rad+lstat*rad,data=train)
+summary(lm.fit3)
+```
+
+### 5. Final Analysis of the model
+
+```{r}
+residuals <- data.frame('Residuals' = lm.fit3$residuals)
+res_hist <- ggplot(residuals, aes(x=Residuals)) + geom_histogram(color='black', fill='skyblue') + ggtitle('Histogram of Residuals')
+res_hist
+```
+
+Looking at the above histogram we can say that graph is slightly right skewed and therefore can almost be considered as normally distributed.
+
+```{r}
+plot(lm.fit3, col='Sky Blue')
+```
+
+
+```{r}
+test$predicted.medv <- predict(lm.fit3,test)
+pl1 <-test %>% 
+  ggplot(aes(medv,predicted.medv)) +
+  geom_point(alpha=0.5) + 
+  stat_smooth(aes(colour='black')) +
+  xlab('Actual value of medv') +
+  ylab('Predicted value of medv') +
+  theme_bw()
+
+ggplotly(pl1)
+```
+
+```{r}
+# Evaluate the model
+mse <- mean((test$medv - test$predicted.medv)^2)  # Mean Squared Error
+cat("Mean Squared Error:", mse)
+```
+
+
+```{r}
+test <- test[,!names(test) %in% c("predicted.medv")]
+```
+
+## Ridge, Lasso, Elastic Net for linear Regression
+
+```{r}
+# Load the required library
+library(glmnet)
+```
+
+
+```{r}
+# Prepare the data
+x_train <- as.matrix(train[, -14])  # Input features
+y_train <- train[, 14]  
+# Prepare the data
+x_test <- as.matrix(test[, -14])  # Input features
+y_test <- test[, 14]  
+```
+
+
+```{r}
+# Fit ridge regression model
+ridge_model <- glmnet(x_train, y_train, alpha = 0)  # alpha = 0 for ridge regression
+# Fit lasso regression model
+lasso_model <- glmnet(x_train, y_train, alpha = 1)  # alpha = 1 for lasso regression
+# Fit elastic net regression model
+enet_model <- glmnet(x_train, y_train, alpha = 0.5)  # alpha = 0.5 for elastic net regression
+```
+
+
+```{r}
+# Predict on the test set
+ridge_pred <- predict(ridge_model, newx = x_test)
+lasso_pred <- predict(lasso_model, newx = x_test)
+enet_pred <- predict(enet_model, newx = x_test)
+```
+
+
+```{r}
+# Calculate mean squared error (MSE) on the test set
+ridge_mse <- mean((ridge_pred - y_test)^2)
+lasso_mse <- mean((lasso_pred - y_test)^2)
+enet_mse <- mean((enet_pred - y_test)^2)
+
+# Print the MSE values
+cat("Ridge Regression MSE:", ridge_mse, "\n")
+cat("Lasso Regression MSE:", lasso_mse, "\n")
+cat("Elastic Net Regression MSE:", enet_mse, "\n")
+```
+
+
+```{r}
+# Calculate adjusted R-squared on the test set
+n <- length(y_test)
+p <- ncol(x_test)
+ridge_adj_rsq <- 1 - (1 - ridge_mse) * (n - 1) / (n - p - 1)
+lasso_adj_rsq <- 1 - (1 - lasso_mse) * (n - 1) / (n - p - 1)
+enet_adj_rsq <- 1 - (1 - enet_mse) * (n - 1) / (n - p - 1)
+
+# Print the adjusted R-squared values
+cat("Ridge Regression Adjusted R-squared:", ridge_adj_rsq, "\n")
+cat("Lasso Regression Adjusted R-squared:", lasso_adj_rsq, "\n")
+cat("Elastic Net Regression Adjusted R-squared:", enet_adj_rsq, "\n")
+```
+
+## Bayesian Multiple Linear Regression
+
+```{r}
+# Import library
+library(BAS)
+
+# Use `bas.lm` to run regression model
+housing.bas = bas.lm(medv ~ ., data = train, prior = "BIC", modelprior = Bernoulli(1), include.always = ~ ., n.models = 1)
+```
+
+
+```{r}
+housing.coef = coef(housing.bas)
+housing.coef
+```
+
+
+```{r}
+par(mfrow = c(2, 2), col.lab = "darkgrey", col.axis = "darkgrey", col = "darkgrey")
+plot(housing.coef, subset = 1:14, ask = F)
+```
+
+
+```{r}
+confint(housing.coef, parm = 1:14)
+```
+
+
+```{r}
+out = confint(housing.coef)[, 1:2]  
+
+# Extract the upper and lower bounds of the credible intervals
+names = c("posterior mean", "posterior std", colnames(out))
+out = cbind(housing.coef$postmean, housing.coef$postsd, out)
+colnames(out) = names
+
+round(out, 2)
+```
+
+
+```{r}
+n = nrow(train)
+```
+
+```{r}
+# Unit information prior
+housing.g = bas.lm(medv ~ ., data=train, prior="g-prior", 
+               a=n, modelprior=uniform())
+# a is the hyperparameter in this case g=n
+
+# Zellner-Siow prior with Jeffrey's reference prior on sigma^2
+housing.ZS = bas.lm(medv ~ ., data=train, prior="JZS", 
+               modelprior=uniform())
+
+# Hyper g/n prior
+housing.HG = bas.lm(medv ~ ., data=train, prior="hyper-g-n", 
+                a=3, modelprior=uniform()) 
+# hyperparameter a=3
+
+# Empirical Bayesian estimation under maximum marginal likelihood
+housing.EB = bas.lm(medv ~ ., data=train, prior="EB-local", 
+                a=n, modelprior=uniform())
+
+# BIC to approximate reference prior
+housing.BIC = bas.lm(medv ~ ., data=train, prior="BIC", 
+                 modelprior=uniform())
+
+# AIC
+housing.AIC = bas.lm(medv ~ ., data=train, prior="AIC", 
+                 modelprior=uniform())
+```
+
+
+```{r}
+probne0 = cbind(housing.BIC$probne0, housing.g$probne0, housing.ZS$probne0, housing.HG$probne0,
+                housing.EB$probne0, housing.AIC$probne0)
+
+colnames(probne0) = c("BIC", "g", "ZS", "HG", "EB", "AIC")
+rownames(probne0) = c(housing.BIC$namesx)
+```
+
+
+```{r}
+library(ggplot2)
+
+# Generate plot for each variable and save in a list
+P = list()
+for (i in 1:14){
+  mydata = data.frame(prior = colnames(probne0), posterior = probne0[i, ])
+  mydata$prior = factor(mydata$prior, levels = colnames(probne0))
+  p = ggplot(mydata, aes(x = prior, y = posterior)) +
+    geom_bar(stat = "identity", fill = "blue") + xlab("") +
+    ylab("") + 
+    ggtitle(housing.g$namesx[i])
+  P = c(P, list(p))
+}
+
+library(cowplot)
+do.call(plot_grid, c(P))
+```
+
+## Bayesian model with MCMC sampler
+
+```{r}
+housing.ZS =  bas.lm(medv ~ ., data=train, prior="ZS-null", modelprior=uniform(), method = "MCMC") 
+```
+
+
+```{r}
+diagnostics(housing.ZS, type="pip", col = "blue", pch = 16, cex = 1.5)
+```
+
+
+```{r}
+diagnostics(housing.ZS, type = "model", col = "blue", pch = 16, cex = 1.5)
+```
+
+
+```{r}
+# Re-run regression using larger number of MCMC iterations
+housing.ZS = bas.lm(medv ~ ., data=train,
+                  prior = "ZS-null", modelprior = uniform(),
+                  method = "MCMC", MCMC.iterations = 10 ^ 6)
+
+# Plot diagnostics again
+diagnostics(housing.ZS, type = "model", col = "blue", pch = 16, cex = 1.5)
+```
+
+
+```{r}
+plot(housing.ZS, which = 1, add.smooth = F, 
+     ask = F, pch = 16, sub.caption="", caption="")
+abline(a = 0, b = 0, col = "darkgrey", lwd = 2)
+```
+
+
+```{r}
+plot(housing.ZS, which=2, add.smooth = F, sub.caption="", caption="")
+```
+
+
+```{r}
+plot(housing.ZS, which=3, ask=F, caption="", sub.caption="")
+```
+
+
+```{r}
+plot(housing.ZS, which = 4, ask = F, caption = "", sub.caption = "", 
+     col.in = "blue", col.ex = "darkgrey", lwd = 3)
+```
+
+
+```{r}
+image(housing.ZS, rotate = F)
+
+```
+
+
+```{r}
+# Extract coefficients
+coef.ZS=coef(housing.ZS)
+
+par(mfrow = c(1,2))
+plot(coef.ZS, subset = c(1:14), 
+     col.lab = "darkgrey", col.axis = "darkgrey", col = "darkgrey", ask = F)
+```
+
+
+```{r}
+round(confint(coef.ZS), 4)
+```
+
+
+```{r}
+housing.BMA = predict(housing.ZS, estimator = "BMA")
+housing.HPM = predict(housing.ZS, estimator = "HPM")
+```
+
+
+```{r}
+housing.HPM$best.vars
+```
+
+
+```{r}
+# Select coefficients of HPM
+
+# Posterior means of coefficients
+coef.housing.ZS = coef(housing.ZS, estimator="HPM")
+coef.housing.ZS
+```
+
+
+```{r}
+postprob.HPM = housing.ZS$postprobs[housing.HPM$best]
+postprob.HPM
+```
+
+
+```{r}
+housing.MPM = predict(housing.ZS, estimator = "MPM")
+housing.MPM$best.vars
+```
+
+
+```{r}
+# Obtain coefficients of the  Median Probabilty Model
+coef(housing.ZS, estimator = "MPM")
+```
+
+
+```{r}
+housing.BPM = predict(housing.ZS, estimator = "BPM")
+housing.BPM$best.vars
+```
+
+
+```{r}
+# Set plot settings
+par(cex = 1.8, cex.axis = 1.8, cex.lab = 2, mfrow = c(2,2), mar = c(5, 5, 3, 3),
+    col.lab = "darkgrey", col.axis = "darkgrey", col = "darkgrey")
+
+# Load library and plot paired-correlations
+library(GGally)
+ggpairs(data.frame(HPM = as.vector(housing.HPM$fit),  
+                   MPM = as.vector(housing.MPM$fit),  
+                   BPM = as.vector(housing.BPM$fit),  
+                   BMA = as.vector(housing.BMA$fit))) 
+```
+
+## Implementation of PCA
+
+```{r}
+# Load required libraries
+library(MASS)
+
+# Load Boston Housing dataset
+data(Boston)
+```
+
+
+```{r}
+# Perform PCA
+pca <- prcomp(Boston, scale. = TRUE)
+pca
+```
+
+
+```{r}
+# Extract principal components
+pc_data <- as.data.frame(pca$x[, 1:5])  # Selecting the first 5 principal components
+```
+
+
+```{r}
+# Split the data into training and testing sets
+set.seed(123)  # Set seed for reproducibility
+train_indices <- sample(1:nrow(pc_data), 0.7 * nrow(pc_data))
+train_data <- pc_data[train_indices, ]
+test_data <- pc_data[-train_indices, ]
+```
+
+
+```{r}
+# Prepare target variable
+target <- Boston$medv[train_indices]  # Use the target variable from the original dataset
+```
+
+
+```{r}
+# Fit a linear regression model
+model <- lm(target ~ ., data = train_data)
+```
+
+
+```{r}
+# Make predictions on test data
+predictions <- predict(model, newdata = test_data)
+```
+
+
+```{r}
+# Evaluate the model
+mse <- mean((Boston$medv[-train_indices] - predictions)^2)  # Mean Squared Error
+cat("Mean Squared Error:", mse)
+```
+
+## Bayesian Models with PCA
+
+```{r}
+# Unit information prior
+pca.housing.g = bas.lm(target ~ ., data = train_data, prior="g-prior", 
+               a=n, modelprior=uniform())
+# a is the hyperparameter in this case g=n
+
+# Zellner-Siow prior with Jeffrey's reference prior on sigma^2
+pca.housing.ZS = bas.lm(target ~ ., data = train_data, prior="JZS", 
+               modelprior=uniform())
+
+# Hyper g/n prior
+pca.housing.HG = bas.lm(target ~ ., data = train_data, prior="hyper-g-n", 
+                a=3, modelprior=uniform()) 
+# hyperparameter a=3
+
+# Empirical Bayesian estimation under maximum marginal likelihood
+pca.housing.EB = bas.lm(target ~ ., data = train_data, prior="EB-local", 
+                a=n, modelprior=uniform())
+
+# BIC to approximate reference prior
+pca.housing.BIC = bas.lm(target ~ ., data = train_data, prior="BIC", 
+                 modelprior=uniform())
+
+# AIC
+pca.housing.AIC = bas.lm(target ~ ., data = train_data, prior="AIC", 
+                 modelprior=uniform())
+```
+
+
+```{r}
+probne0 = cbind(pca.housing.BIC$probne0, pca.housing.g$probne0, pca.housing.ZS$probne0, pca.housing.HG$probne0,
+                pca.housing.EB$probne0, pca.housing.AIC$probne0)
+
+colnames(probne0) = c("BIC", "g", "ZS", "HG", "EB", "AIC")
+rownames(probne0) = c(pca.housing.BIC$namesx)
+```
+
+
+```{r}
+library(ggplot2)
+
+# Generate plot for each variable and save in a list
+P = list()
+for (i in 1:5){
+  mydata = data.frame(prior = colnames(probne0), posterior = probne0[i, ])
+  mydata$prior = factor(mydata$prior, levels = colnames(probne0))
+  p = ggplot(mydata, aes(x = prior, y = posterior)) +
+    geom_bar(stat = "identity", fill = "blue") + xlab("") +
+    ylab("") + 
+    ggtitle(pca.housing.g$namesx[i])
+  P = c(P, list(p))
+}
+
+library(cowplot)
+do.call(plot_grid, c(P))
+```

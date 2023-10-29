@@ -1,0 +1,840 @@
+---
+title: "Project: Boston Housing"
+author: "Ana Drmic"
+date: "1/6/2023"
+output: html_notebook
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, echo=FALSE}
+rm(list=ls())
+```
+
+
+Set the directory where you have the dataset on your computer
+(below you see my directory, you should save the direcory /data with all the dataset in as a subdirectory of  "bla1/bla2/yourfavouritename" directory in your computer and below write the correct path, i.e. "~/bla1/bla2/yourfavouritename")
+```{r}
+setwd("~/Desktop/POLIMI/3 BLMS")
+```
+
+
+
+# Boston Housing Dataset
+
+source: 
+<https://www.kaggle.com/code/prasadperera/the-boston-housing-dataset>
+
+The Boston Housing Dataset is a derived from information collected by the U.S.
+Census Service concerning housing in the area of [Boston
+MA](http://www.cs.toronto.edu/~delve/data/boston/bostonDetail.html). The
+following describes the dataset columns:
+
+-   CRIM - per capita crime rate by town
+
+-   ZN - proportion of residential land zoned for lots over 25,000 sq.ft.
+
+-   INDUS - proportion of non-retail business acres per town.
+
+-   CHAS - Charles River dummy variable (1 if tract bounds river; 0 otherwise)
+
+-   NOX - nitric oxides concentration (parts per 10 million)
+
+-   RM - average number of rooms per dwelling
+
+-   AGE - proportion of owner-occupied units built prior to 1940
+
+-   DIS - weighted distances to five Boston employment centres
+
+-   RAD - index of accessibility to radial highways
+
+-   TAX - full-value property-tax rate per \$10,000
+
+-   PTRATIO - pupil-teacher ratio by town
+
+-   B - 1000(Bk - 0.63)\^2 where Bk is the proportion of blacks by town
+
+-   LSTAT - % lower status of the population
+
+-   MEDV - Median value of owner-occupied homes in \$1000's
+
+Aim: perform a regression analysis with  MEDV as response variable. 
+
+
+INTRO:
+The aim of this project is to perform a regression analysis on the Boston Housing Dataset to predict the median value of owner-occupied homes (MEDV) based on various housing attributes.
+
+The Boston Housing Dataset is derived from information collected by the U.S. Census Service concerning housing in the area of Boston, Massachusetts. It consists of 506 observations and 14 variables capturing different aspects of the housing market.
+
+The goal is to build a regression model that can accurately predict the median value of owner-occupied homes based on the provided features. The dataset offers a diverse set of variables, including crime rates, land zoning, air pollution levels, average number of rooms, and socioeconomic indicators.
+
+By analyzing the relationships between these predictors and the target variable, we can gain insights into the factors that influence housing prices and develop a predictive model to estimate home values for future observations.
+
+GENERAL EXPLORATION:
+```{r}
+housing1 <- read.csv("housing.csv")
+head(housing1)
+housing=housing1[,-1]
+LM=lm(housing$MEDV~., data=housing)
+summary(LM)
+```
+
+CHECKING THE DATASET AND THE CORRELATION BETWEEN VARIABLES:
+```{r}
+# checking missing values
+sum(is.na(housing))
+
+# checking duplicated values
+sum(duplicated(housing))
+
+# install and load the corrplot package
+install.packages("corrplot", repos = "http://cran.us.r-project.org")
+library(corrplot)
+
+# generate the correlation matrix
+cor_matrix <- cor(housing)
+
+# correlation between variables
+corrplot(cor_matrix, method = "number", type = "upper", diag = FALSE)
+
+# to create plots for each correlation, I iterated over the correlation matrix and create plots for each pair of variables
+
+# get the names of the variables
+variables <- colnames(cor_matrix)
+
+# iterate over each pair of variables
+for (i in 1:(length(variables)-1)) {
+  for (j in (i+1):length(variables)) {
+    var1 <- variables[i]
+    var2 <- variables[j]
+    
+    # create a scatter plot of the variables
+    plot(housing[, var1], housing[, var2], 
+         xlab = var1, ylab = var2,
+         main = paste("Scatter Plot:", var1, "vs", var2))
+    
+    # additional
+    # add regression lines 
+    abline(lm(housing[, var2] ~ housing[, var1]), col = "red")
+    
+    # save the plot
+    # png(file = paste(var1, "_vs_", var2, ".png", sep = ""))
+    # plot(housing[, var1], housing[, var2], ...)
+    # dev.off()
+    
+    # pause before moving on to the next plot 
+    # Sys.sleep(2)
+  }
+}
+
+```
+
+SCATTER PLOT OF DEPENDENT VARIABLES WITH MEDV:
+```{r}
+library(dplyr)
+library(ggplot2)
+library(tidyr)
+
+# convert the data from wide to long format
+data <- gather(housing, key, val, -MEDV)
+
+# create scatter plots with regression lines
+plots <- housing %>%
+  gather(key, val, -MEDV) %>%
+  ggplot(aes(x = val, y = MEDV)) +
+  geom_point() +
+  stat_smooth(method = "lm", se = TRUE, col = "purple") +
+  facet_wrap(~key, scales = "free") +
+  theme_gray() +
+  ggtitle("Scatter plot of dependent variables with MEDV") 
+
+# display the plots
+print(plots)
+```
+
+REGRESSION MODEL:
+```{r}
+library(rstanarm)
+
+# the model: we specify the regression model using the stan_glm() function, where MEDV is the response variable, and the other variables (CRIM, ZN,...) are the predictor variables
+model <- stan_glm(
+  formula = MEDV ~ CRIM + ZN + INDUS + CHAS + NOX + RM + AGE + DIS + RAD + TAX + PTRATIO + B + LSTAT,
+  data = housing,
+  family = gaussian(), # specifying the Gaussian likelihood function, assuming that the response variable follows a normal distribution
+  prior_intercept = normal(0, 10), # the intercept
+  prior = normal(0, 5) # the slopes
+)
+
+summary(model)
+```
+
+In this project, we will employ a linear regression model to capture the relationship between the predictor variables and the response variable, MEDV (median value of owner-occupied homes).
+We assume a Gaussian (normal) likelihood for the regression model. This implies that the conditional distribution of MEDV, given the predictor variables, follows a normal distribution. The linear regression model assumes that the response variable can be represented as a linear combination of the predictors, with normally distributed errors:
+
+MEDV ~ N(mu, sigma^2)
+
+Here, mu represents the mean value of MEDV, which is given by the linear combination of the predictor variables, and sigma^2 represents the variance of the errors.
+
+```{r}
+# or
+
+# likelihood: Gaussian (Normal) Distribution
+likelihood <- function(params, housing) {
+  # predictor variables
+  predictors <- model.matrix(~ CRIM + ZN + INDUS + CHAS + NOX + RM + AGE + DIS + RAD + TAX + PTRATIO + B + LSTAT, housing)
+  
+  # predicted values
+  y_hat <- predictors %*% params
+
+  residuals <- housing$MEDV - y_hat
+  
+  log_likelihood <- sum(dnorm(housing$MEDV, mean = y_hat, sd = sqrt(var(residuals)), log = TRUE))
+  
+  return(log_likelihood)
+}
+
+# prior distributions
+prior <- function(params) {
+  # intercept prior: Normal distribution with mean 0 and standard deviation 10
+  prior_intercept <- dnorm(params[1], mean = 0, sd = 10, log = TRUE)
+  
+  # slope priors: Normal distribution with mean 0 and standard deviation 5
+  prior_slopes <- sum(dnorm(params[-1], mean = 0, sd = 5, log = TRUE))
+  
+  return(prior_intercept + prior_slopes)
+}
+
+# these functions can be used within a Bayesian framework, eg. Markov Chain Monte Carlo sampling methods, to estimate the posterior distribution of the model parameters
+
+```
+
+For the prior distribution of the model parameters (intercept and slopes), we can choose appropriate distributions based on our prior knowledge or assumptions. Common choices include normal distributions for continuous variables and beta distributions for proportions.
+
+To determine the specific set of values for the hyperparameters in the prior (if hyperparameters are present), we can consider factors such as prior beliefs, previous research findings, or expert knowledge. 
+
+For example, if we assume a normal distribution for the intercept and slopes, we need to specify the prior mean and variance for each parameter. The specific values for these hyperparameters can be based on domain knowledge or exploration of prior research. 
+
+
+```{r}
+# the model alterations
+model <- stan_glm(
+  formula = MEDV ~ CRIM + ZN + INDUS + CHAS + NOX + RM + AGE + DIS + RAD + TAX + PTRATIO + B + LSTAT,
+  data = housing,
+  family = gaussian(),
+  prior_intercept = normal(0, 10),
+  prior = normal(0, 5),
+  chains = 4,  # number of MCMC chains
+  iter = 2000  # number of iterations per chain
+)
+
+# the posterior distributions
+summary(model)
+plot(model)
+
+# sensitivity analysis: try different prior variance for LM
+model_sensitivity <- stan_glm(
+  formula = MEDV ~ CRIM + ZN + INDUS + CHAS + NOX + RM + AGE + DIS + RAD + TAX + PTRATIO + B + LSTAT,
+  data = housing,
+  family = gaussian(),
+  prior_intercept = normal(0, 10),
+  prior = normal(0, 2),  # different prior variance for slopes
+  chains = 4,
+  iter = 2000
+)
+
+# the posterior distributions for sensitivity analysis
+summary(model_sensitivity)
+plot(model_sensitivity)
+
+```
+In this analysis, we employed a Bayesian approach to examine the posterior distribution of the model parameters and draw meaningful inferences. The results of the analysis provide valuable insights into the underlying data generating process.
+
+By combining the prior distribution with the likelihood function, we can obtain the posterior distribution using Markov Chain Monte Carlo (MCMC) methods, such as the Metropolis-Hastings algorithm or Gibbs sampling. The code iteratively generates samples from the posterior distribution, allowing us to explore the uncertainty and variability associated with the parameter estimates.
+
+```{r}
+# an example of performing Bayesian linear regression using the Stan probabilistic programming language
+install.packages("rstan")
+install.packages("tidyverse")
+
+library(rstan)
+library(tidyverse)
+
+# prepare the data
+boston_data <- as.data.frame(housing)
+x <- as.matrix(boston_data[, -14])  # independent variables
+y <- as.vector(boston_data[, 14])  # dependent variable
+
+# the data list for Stan
+stan_data <- list(N = nrow(boston_data), K = ncol(boston_data) - 1, X = x, Y = y)
+
+# define the Stan model
+stan_code <- "
+data {
+  int<lower=0> N;  // number of observations
+  int<lower=0> K;  // number of independent variables
+  matrix[N, K] X;  // independent variable matrix
+  vector[N] Y;    // dependent variable vector
+}
+parameters {
+  vector[K] beta;     // regression coefficients
+  real<lower=0> sigma; // error standard deviation
+}
+model {
+  // Prior distributions
+  beta ~ normal(0, 1);        // normal prior for coefficients
+  sigma ~ cauchy(0, 5);      // cauchy prior for error standard deviation
+  
+  // likelihood function
+  Y ~ normal(X * beta, sigma); // normal likelihood function
+}
+"
+
+# compile the Stan model
+stan_model <- stan_model(model_code = stan_code)
+
+# perform MCMC sampling
+stan_fit <- sampling(stan_model, data = stan_data, chains = 4, iter = 2000)
+
+# print the summary of the posterior samples
+print(stan_fit)
+
+# plot the posterior distributions
+plot(stan_fit, pars = c("beta", "sigma"))
+
+# extract the posterior samples
+posterior_samples <- as.data.frame(stan_fit)
+
+# perform posterior analysis and interpretation as desired
+# compute the mean, median, and credible intervals for the regression coefficients
+
+# compute the mean of the coefficients
+mean_coeffs <- colMeans(posterior_samples[, grepl("beta", colnames(posterior_samples))])
+
+# compute the median of the coefficients
+median_coeffs <- apply(posterior_samples[, grepl("beta", colnames(posterior_samples))], 2, median)
+
+# compute the 95% credible intervals for the coefficients
+credible_intervals <- apply(posterior_samples[, grepl("beta", colnames(posterior_samples))], 2, function(x) quantile(x, c(0.025, 0.975)))
+
+# print the results
+print("Mean coefficients:")
+print(mean_coeffs)
+print("Median coefficients:")
+print(median_coeffs)
+print("95% Credible Intervals:")
+print(credible_intervals)
+```
+
+```{r}
+# an example of performING Bayesian linear regression using the JAGS (Just Another Gibbs Sampler) software
+#remove.packages("rjags")
+install.packages("rjags", dependencies = TRUE) 
+install.packages("tidyverse")
+
+library(rjags) # in case of errors while loading the library, download from:             https://sourceforge.net/projects/mcmc-jags/files/latest/download
+library(tidyverse)
+
+# prepare the data
+boston_data <- as.data.frame(housing)
+x <- as.matrix(boston_data[, -14])  # independent variables
+y <- as.vector(boston_data[, 14])  # dependent variable
+
+# create the data list for JAGS
+jags_data <- list(
+  N = nrow(boston_data),  # number of observations
+  K = ncol(boston_data) - 1,  # number of independent variables
+  X = x,  # independent variable matrix
+  Y = y  # dependent variable vector
+)
+
+# define the JAGS model
+jags_model <- "
+model {
+  # priors
+  for (k in 1:K) {
+    beta[k] ~ dnorm(0, 1)  # normal prior for coefficients
+  }
+  sigma ~ dcauchy(0, 5)  # cauchy prior for error standard deviation
+  
+  # likelihood
+  for (i in 1:N) {
+    mu[i] <- inprod(X[i, ], beta)  # mean of the regression model
+    Y[i] ~ dnorm(mu[i], sigma)  # normal likelihood function
+  }
+}
+"
+
+# set the parameters for JAGS
+jags_parameters <- c("beta", "sigma")  # parameters to monitor
+
+# specify the initial values for the MCMC chain
+jags_inits <- function() {
+  list(beta = rnorm(ncol(boston_data) - 1), sigma = runif(1))
+}
+
+# set the number of burn-in and iterations
+jags_n_burnin <- 1000
+jags_n_iter <- 5000
+
+# run the JAGS model
+jags_fit <- jags(
+  data = jags_data,
+  inits = jags_inits,
+  parameters.to.save = jags_parameters,
+  model.file = textConnection(jags_model),
+  n.burnin = jags_n_burnin,
+  n.iter = jags_n_iter
+)
+
+# print the summary of the posterior samples
+print(jags_fit)
+
+# plot the posterior distributions
+plot(jags_fit)
+
+# extract the posterior samples
+posterior_samples <- as.data.frame(jags_fit)
+
+# perform posterior analysis and interpretation 
+# compute the mean, median, and credible intervals for the regression coefficients
+
+# compute the mean of the coefficients
+mean_coeffs <- colMeans(posterior_samples[, grepl("beta", colnames(posterior_samples))])
+
+# compute the median of the coefficients
+median_coeffs <- apply(posterior_samples[, grepl("beta", colnames(posterior_samples))], 2, median)
+
+# compute the 95% credible intervals for the coefficients
+credible_intervals <- apply(posterior_samples[, grepl("beta", colnames(posterior_samples))], 2, function(x) quantile(x, c(0.025, 0.975)))
+
+# print the results
+print("Mean coefficients:")
+print(mean_coeffs)
+print("Median coefficients:")
+print(median_coeffs)
+print("95% Credible Intervals:")
+print(credible_intervals)
+```
+
+Once the posterior distribution is obtained, we can compute summary statistics to summarize the posterior estimates of the model parameters. These statistics include the posterior mean, which provides a measure of central tendency, and the posterior standard deviation, which reflects the uncertainty or dispersion of the estimates. Additionally, we may have also computed the posterior median, which is the middle value of the posterior distribution, and credible intervals, which capture a specified level of uncertainty around the parameter estimates.
+
+In conclusion, the code in R for posterior analysis and interpretation yielded valuable insights into the data generating process. By estimating the posterior distribution, computing summary statistics, we gain a comprehensive understanding of the model parameters and draw meaningful inferences. The interpretation of the results is guided by the posterior distribution, summary statistics, and relevant domain knowledge. These findings contribute to a deeper understanding of the evidence-based decision-making.
+
+In the sensitivity analysis, we can try different values for the prior variance for the slope coefficients in the linear regression model. This allows us to assess the impact of different prior specifications on the posterior results and examine how the choice of prior variance affects the model's inference.
+
+By exploring different values for the prior variance, we can investigate how the prior distribution influences the posterior distribution of the slope coefficients and potentially observe changes in the posterior means, standard deviations, and credible intervals.
+
+
+```{r}
+# SKIP
+
+# generic way of comparing models 
+
+# library(MASS)  # MASS for BIC function
+
+# fit Model A and Model B
+# modelA <- model(formula_A, data)
+# modelB <- lm(formula_B, data)
+
+# BIC for each model
+# bic_A <- BIC(modelA)
+# bic_B <- BIC(modelB)
+
+# compare BIC values
+# if (bic_A < bic_B) {
+#  selected_model <- modelA
+#  model_name <- "Model A"
+# } else {
+#  selected_model <- modelB
+#  model_name <- "Model B"
+# }
+
+# print the selected model
+# cat("Selected Model:", model_name)
+```
+
+A MULTIPLE LINEAR REGRESSION MODEL:
+```{r}
+
+# fit a multiple linear regression model
+mlr_model <- lm( MEDV ~ CRIM + ZN + INDUS + CHAS + NOX + RM + AGE + DIS + RAD + TAX + PTRATIO + B + LSTAT, data = housing)
+
+# print the summary of the multiple linear regression model
+summary(mlr_model)
+
+```
+
+A BAYESIAN LINEAR REGRESSION MODEL:
+```{r}
+install.packages("rstanarm")
+library(rstanarm)
+library(MASS)
+
+# fit a Bayesian linear regression model
+bayesian_model <- stan_glm(MEDV ~ ., data = housing, family = "gaussian")
+
+# print the summary of the Bayesian linear regression model
+summary(bayesian_model)
+
+```
+
+SUPPORT VECTOR REGRESSION:
+```{r}
+library(e1071)
+
+# split the data into predictors (X) and target variable (y)
+X <- as.matrix(housing[, -14])
+y <- housing$MEDV
+
+# scale the predictors
+scaled_X <- scale(X)
+
+# split the data into training and test sets
+set.seed(123)
+train_indices <- sample(1:nrow(scaled_X), 0.7*nrow(scaled_X))
+train_X <- scaled_X[train_indices, ]
+train_y <- y[train_indices]
+test_X <- scaled_X[-train_indices, ]
+test_y <- y[-train_indices]
+
+# train the SVR model
+model <- svm(train_y ~ ., data = as.data.frame(train_X), kernel = "radial")
+
+# make predictions on the test set
+predictions <- predict(model, newdata = as.data.frame(test_X))
+
+# evaluate the model
+mse <- mean((predictions - test_y)^2)
+rmse <- sqrt(mse)
+r_squared <- cor(predictions, test_y)^2
+
+# print the evaluation metrics
+cat("Mean Squared Error (MSE):", mse, "\n")
+cat("Root Mean Squared Error (RMSE):", rmse, "\n")
+cat("R-squared:", r_squared, "\n")
+
+```
+
+In this case, the MSE value of 13.71281 indicates that, on average, the squared difference between the predicted and actual values is 13.71281. Lower values of MSE indicate better model performance, as it signifies a smaller average prediction error.
+The RMSE value of 3.703082 indicates that, on average, the predicted values deviate from the actual values by approximately 3.703082 units. As with the MSE, lower values of RMSE indicate better model performance.
+Our R-squared value of 0.8513956 indicates that approximately 85.14% of the variance in housing prices is explained by the SVR model. Shortly, higher R-squared values indicate a better fit of the model to the data.
+
+Overall, the results suggest that the SVR model has performed well on the Boston housing dataset. It has low MSE and RMSE values, indicating that the model's predictions are close to the actual values. Additionally, the high R-squared value suggests that the model explains a significant portion of the variance in housing prices. However, it is essential to consider other factors such as model assumptions, data quality, and potential overfitting.
+
+```{r}
+library(ggplot2)
+
+# create a data frame with actual and predicted values
+results <- data.frame(Actual = test_y, Predicted = predictions)
+
+# create the scatter plot
+scatter_plot <- ggplot(results, aes(x = Actual, y = Predicted)) +
+  geom_point(color = "blue") +
+  geom_abline(intercept = 0, slope = 1, color = "red", linetype = "dashed") +
+  labs(x = "Actual Values", y = "Predicted Values") +
+  ggtitle("Scatter Plot: Actual vs Predicted Values")
+
+# save the scatter plot as an image file
+ggsave("scatter_plot_SVR.png", plot = scatter_plot)
+
+# residual plot
+residuals <- test_y - predictions
+
+# create the residual plot
+residual_plot <- ggplot() +
+  geom_point(aes(x = predictions, y = residuals), color = "blue") +
+  geom_hline(yintercept = 0, color = "red", linetype = "dashed") +
+  labs(x = "Predicted Values", y = "Residuals") +
+  ggtitle("Residual Plot: Predicted Values vs Residuals")
+
+# save the residual plot as an image file
+ggsave("residual_plot_SVR.png", plot = residual_plot)
+
+```
+
+
+COMPARISON OF SVR AND LR MODEL:
+```{r}
+library(e1071)
+library(caret)
+
+# split the data into predictors (X) and target variable (y)
+X <- as.matrix(housing[, -14])
+y <- housing$MEDV
+
+# scale the predictors
+scaled_X <- scale(X)
+
+# split the data into training and test sets
+set.seed(123)
+train_indices <- sample(1:nrow(scaled_X), 0.7*nrow(scaled_X))
+train_X <- scaled_X[train_indices, ]
+train_y <- y[train_indices]
+test_X <- scaled_X[-train_indices, ]
+test_y <- y[-train_indices]
+
+# train the first model: Linear Regression
+linear_model <- lm(train_y ~ ., data = as.data.frame(train_X))
+
+# again, in case of running only this block
+# train the second model: Support Vector Regression
+svm_model <- svm(train_y ~ ., data = as.data.frame(train_X), kernel = "radial")
+
+# make predictions on the test set for both models
+linear_predictions <- predict(linear_model, newdata = as.data.frame(test_X))
+svm_predictions <- predict(svm_model, newdata = as.data.frame(test_X))
+
+# evaluate the models
+linear_mse <- mean((linear_predictions - test_y)^2)
+linear_rmse <- sqrt(linear_mse)
+linear_r_squared <- cor(linear_predictions, test_y)^2
+
+svm_mse <- mean((svm_predictions - test_y)^2)
+svm_rmse <- sqrt(svm_mse)
+svm_r_squared <- cor(svm_predictions, test_y)^2
+
+# compare the models using evaluation metrics
+cat("Linear Regression:\n")
+cat("MSE:", linear_mse, "\n")
+cat("RMSE:", linear_rmse, "\n")
+cat("R-squared:", linear_r_squared, "\n")
+
+cat("\nSupport Vector Regression:\n")
+cat("MSE:", svm_mse, "\n")
+cat("RMSE:", svm_rmse, "\n")
+cat("R-squared:", svm_r_squared, "\n")
+
+# perform a statistical test (e.g., t-test) to compare the models
+t_test_result <- t.test(linear_predictions, svm_predictions)
+cat("\nStatistical Test:\n")
+print(t_test_result)
+
+```
+
+Overall, both models perform well on the given dataset, but the Linear Regression model outperforms the SVR model in terms of MSE and RMSE, achieving virtually perfect predictions. The high R-squared value of the SVR model indicates its ability to explain a significant portion of the variance in the target variable. 
+
+```{r}
+library(glmnet)
+library(caret)
+
+# split the data into predictors (X) and target variable (y)
+X <- as.matrix(housing[, -14]) # not -15 (x!)
+y <- housing$MEDV
+
+# scale the predictors
+scaled_X <- scale(X)
+
+# split the data into training and test sets
+set.seed(123)
+train_indices <- sample(1:nrow(scaled_X), 0.7*nrow(scaled_X))
+train_X <- scaled_X[train_indices, ]
+train_y <- y[train_indices]
+test_X <- scaled_X[-train_indices, ]
+test_y <- y[-train_indices]
+
+# train the Lasso Regression model
+lasso_model <- cv.glmnet(x = train_X, y = train_y, alpha = 1)
+
+# determine the optimal lambda value
+optimal_lambda <- lasso_model$lambda.min
+
+# fit the Lasso Regression model with the optimal lambda
+lasso_fit <- glmnet(x = train_X, y = train_y, alpha = 1, lambda = optimal_lambda)
+
+# make predictions on the test set using the Lasso model
+lasso_predictions <- predict(lasso_fit, newx = test_X)
+
+# evaluate the model
+lasso_mse <- mean((lasso_predictions - test_y)^2)
+lasso_rmse <- sqrt(lasso_mse)
+lasso_r_squared <- cor(lasso_predictions, test_y)^2
+
+# print the evaluation metrics
+cat("Lasso Regression:\n")
+cat("MSE:", lasso_mse, "\n")
+cat("RMSE:", lasso_rmse, "\n")
+cat("R-squared:", lasso_r_squared, "\n")
+
+```
+```{r}
+library(ggplot2)
+# create a scatter plot of actual vs. predicted values
+scatter_plotL <- ggplot(data.frame(test_y, lasso_predictions), aes(x = test_y, y = lasso_predictions)) +
+  geom_point() +
+  geom_abline(intercept = 0, slope = 1, color = "red") +
+  labs(x = "Actual Values", y = "Predicted Values", title = "Scatter Plot: Actual vs. Predicted Values (Lasso Regression)")
+
+# save the scatter plot as an image file
+ggsave("scatter_plot_Lasso.png", plot = scatter_plotL)
+
+# calculate the residuals
+residuals <- test_y - lasso_predictions
+
+# create a residual plot
+residual_plotL <- ggplot(data.frame(lasso_predictions, residuals), aes(x = lasso_predictions, y = residuals)) +
+  geom_point() +
+  geom_hline(yintercept = 0, color = "red") +
+  labs(x = "Predicted Values", y = "Residuals", title = "Residual Plot (Lasso Regression)")
+
+# save the residual plot as an image file
+ggsave("residual_plot_Lasso.png", plot = residual_plotL)
+
+```
+
+LRM AGAIN:
+```{r}
+# split data set into 80:20 train and test data
+set.seed(12383010)
+index <- sample(nrow(housing), nrow(housing) * 0.80)
+housing.train <- housing[index, ]
+housing.test <- housing[-index, ]
+
+# build linear regression model
+model1 <- lm(MEDV ~ ., data = housing.train)
+model1.sum <- summary(model1)
+model1.sum
+```
+
+The results provide information about the goodness of fit and statistical significance of a regression model:
+
+1. Residual standard error: This value, 4.679, represents the estimated standard deviation of the residuals (the differences between the observed values and the predicted values) in the regression model. It provides a measure of the average distance between the observed data points and the regression line. A smaller residual standard error indicates a better fit of the model to the data.
+
+2. Multiple R-squared: The multiple R-squared value, 0.7531, indicates the proportion of the variance in the dependent variable that can be explained by the independent variables in the regression model. It ranges from 0 to 1, with higher values indicating a stronger relationship between the predictors and the response variable. In this case, approximately 75.31% of the variability in the dependent variable is accounted for by the independent variables.
+
+3. Adjusted R-squared: The adjusted R-squared value, 0.7442, is similar to the multiple R-squared but takes into account the number of predictors in the model. It penalizes the addition of unnecessary predictors and provides a more conservative estimate of the model's explanatory power. The adjusted R-squared is often preferred when comparing models with different numbers of predictors.
+
+4. F-statistic: The F-statistic, 84.76, is a measure of the overall significance of the regression model. It assesses whether the relationship between the predictors and the dependent variable is statistically significant. A larger F-statistic indicates a stronger overall relationship. The F-statistic is also associated with a p-value, which is a measure of the probability of observing such a strong relationship by chance alone. In this case, the p-value is reported as < 2.2e-16, which is extremely small and suggests strong evidence against the null hypothesis of no relationship.
+
+Overall, these results indicate that the regression model has a reasonably good fit to the data, as indicated by a relatively low residual standard error and a moderately high multiple R-squared. The F-statistic and its associated p-value suggest that the relationship between the predictors and the dependent variable is statistically significant.
+
+```{r}
+# from the previous summary: indus and age are insignificant
+# model without indus and age
+model2 <- lm(MEDV ~ . -INDUS -AGE, data = housing.train)
+model2.sum <- summary(model2)
+model2.sum
+```
+Summary: all variables are significant based on p-value.
+
+```{r}
+install.packages("leaps")
+library(leaps)  
+
+# variable selection using best subset regression
+model.subset <- regsubsets(MEDV ~ ., data = housing.train, nbest = 1, nvmax = 13)
+summary(model.subset)
+
+plot(model.subset, scale = "bic")
+```
+Identifying the most relevant predictors or independent variables from a large set of potential variables. The goal is to find the subset of variables that best explains the variation in the dependent variable.
+
+
+```{r}
+# variable selection using stepwise regression
+nullmodel <- lm(MEDV ~ 1, data = housing.train)
+fullmodel <- lm(MEDV ~ ., data = housing.train)
+
+# forward selection
+model.step.f <- step(nullmodel, scope = list(lower = nullmodel, upper = fullmodel), direction = "forward")
+```
+
+```{r}
+# backward selection
+model.step.b <- step(fullmodel, direction = "backward")
+```
+
+```{r}
+# stepwise selection
+model.step <- step(nullmodel, scope = list(lower = nullmodel, upper = fullmodel), direction = "both")
+```
+
+```{r}
+AIC(model.step)
+BIC(model.step)
+
+summary(model.step)
+```
+From Best subset regression and stepwise selection (forward, backward, both), we see that all variables except indus and age are significant.
+
+```{r}
+# model diagnostics for model 2
+par(mfrow = c(2,2))
+plot(model.step)
+```
+
+```{r}
+par(mfrow = c(1,1))
+```
+
+```{r}
+# in-sample performance
+# MSE
+model.sum <- summary(model1)
+(model.sum$sigma) ^ 2
+
+model2.sum <- summary(model2)
+(model2.sum$sigma) ^ 2
+
+# R-squared
+model1.sum$r.squared
+
+model2.sum$r.squared
+
+# adjusted r square
+model1.sum$adj.r.squared
+
+model2.sum$adj.r.squared
+
+AIC(model1)
+
+AIC(model2)
+
+BIC(model1)
+
+BIC(model2)
+
+# out-of-sample Prediction or test error (MSPE)
+model1.pred.test <- predict(model1, newdata = housing.test)
+model1.mspe <- mean((model1.pred.test - housing.test$MEDV) ^ 2)
+model1.mspe
+
+#install.packages("boot")  
+library(boot) 
+
+# Cross Validation
+model1.glm = glm(MEDV ~ ., data = housing)
+cv.glm(data = housing, glmfit = model1.glm, K = 5)$delta[2]
+
+model2.glm <- glm(MEDV ~ . -INDUS -AGE, data = housing)
+cv.glm(data = housing, glmfit = model2.glm, K = 5)$delta[2]
+
+```
+REGRESSION TREE:
+```{r}
+#install.packages("rpart")  
+library(rpart) 
+#install.packages("rpart.plot")
+library(rpart.plot)
+
+# default value of cp = 0.01
+housing.tree <- rpart(MEDV ~ ., data = housing.train)
+housing.tree
+
+# plotting the tree
+rpart.plot(housing.tree, type = 3, box.palette = c("purple", "pink"), fallen.leaves = TRUE)
+
+printcp(housing.tree)
+```
+
+```{r}
+# in-sample MSE
+mean((predict(housing.tree) - housing.train$MEDV) ^ 2)    
+
+# out-of-sample performance
+# mean squared error loss for this tree
+mean((predict(housing.tree, newdata = housing.test) - housing.test$MEDV) ^ 2)  
+```
+
+

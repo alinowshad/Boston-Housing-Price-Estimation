@@ -1,0 +1,507 @@
+---
+title: "Final Project"
+author: "Fateme Hajizade"
+date: "30/5/2022"
+output: html_notebook
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, echo=FALSE}
+rm(list=ls())
+```
+
+```{r}
+setwd("E:/Polimi/Bayesian Learning and Monte Carlo Simulation/Final project")
+```
+
+
+# 1.  Boston Housing Dataset
+
+source: 
+<https://www.kaggle.com/code/prasadperera/the-boston-housing-dataset>
+
+The Boston Housing Dataset is a derived from information collected by the U.S.
+Census Service concerning housing in the area of [Boston
+MA](http://www.cs.toronto.edu/~delve/data/boston/bostonDetail.html). The
+following describes the dataset columns:
+
+-   CRIM - per capita crime rate by town
+
+-   ZN - proportion of residential land zoned for lots over 25,000 sq.ft.
+
+-   INDUS - proportion of non-retail business acres per town.
+
+-   CHAS - Charles River dummy variable (1 if tract bounds river; 0 otherwise)
+
+-   NOX - nitric oxides concentration (parts per 10 million)
+
+-   RM - average number of rooms per dwelling
+
+-   AGE - proportion of owner-occupied units built prior to 1940
+
+-   DIS - weighted distances to five Boston employment centres
+
+-   RAD - index of accessibility to radial highways
+
+-   TAX - full-value property-tax rate per \$10,000
+
+-   PTRATIO - pupil-teacher ratio by town
+
+-   B - 1000(Bk - 0.63)\^2 where Bk is the proportion of blacks by town
+
+-   LSTAT - % lower status of the population
+
+-   MEDV - Median value of owner-occupied homes in \$1000's
+
+Aim: perform a regression analysis with  MEDV as response variable. 
+
+
+```{r}
+housing <- read.csv("housing.csv")
+head(housing)
+```
+
+```{r}
+house <- housing[, -1]
+LM <- lm(house$MEDV~., data = house)
+summary(LM)
+```
+
+```{r}
+library(ggplot2)
+```
+
+```{r}
+ggplot(house, aes(x = MEDV)) +
+  geom_histogram(binwidth = 5) +
+  xlab("Median Value of Homes") +
+  ylab("Frequency")
+```
+
+```{r}
+ggplot(house, aes(x = RM, y = MEDV)) +
+  geom_point() +
+  xlab("Average Number of Rooms") +
+  ylab("Median Value of Homes")
+```
+
+```{r}
+# Check for missing values
+any(is.na(house))
+```
+
+```{r}
+# Create box plots for checking outliers
+boxplot(house)
+```
+
+```{r}
+library(rjags)
+```
+
+```{r}
+# Set up the JAGS model
+model_string_1 <- "model {
+
+  # Likelihood
+  for (i in 1:N) {
+    y[i] ~ dnorm(mu[i], tau)
+    mu[i] <- beta[1] + beta[2]*crim[i] + beta[3]*zn[i] + beta[4]*indus[i] +
+              beta[5]*chas[i] + beta[6]*nox[i] + beta[7]*rm[i] +
+              beta[8]*age[i] + beta[9]*dis[i] + beta[10]*rad[i] +
+              beta[11]*tax[i] + beta[12]*ptratio[i] + beta[13]*b[i] +
+              beta[14]*lstat[i]
+  }
+  
+  # Priors
+  for (j in 1:14) {
+    beta[j] ~ dnorm(0, 1e-6)
+  }
+  
+  # Hyperparameters
+  tau ~ dgamma(0.001, 0.001)
+  
+}"
+```
+
+
+```{r}
+# Prepare the data as a list
+house_list_1 <- list(crim = house$CRIM,
+             zn = house$ZN,
+             indus = house$INDUS,
+             chas = house$CHAS,
+             nox = house$NOX,
+             rm = house$RM,
+             age = house$AGE,
+             dis = house$DIS,
+             rad = house$RAD,
+             tax = house$TAX,
+             ptratio = house$PTRATIO,
+             b = house$B,
+             lstat = house$LSTAT,
+             y = house$MEDV,
+             N = nrow(house))
+```
+
+
+```{r}
+# Run the MCMC chain
+model_1 <- jags.model(file = textConnection(model_string_1),
+                    data = house_list_1,
+                    n.chains = 1)
+```
+
+```{r}
+# Burn-in
+update(model_1, n.iter = 1000)
+
+# Run
+posterior_samples_1 <- coda.samples(model_1,
+                             variable.names = c("beta"),
+                             n.iter = 10000)
+```
+
+
+```{r}
+# Analyze the posterior samples
+summary(posterior_samples_1)
+```
+
+
+```{r}
+plot(posterior_samples_1[, 2], type = "l", xlab = "Iteration", ylab = "CRIM Value")
+
+```
+
+```{r}
+plot(posterior_samples_1[, 3], type = "l", xlab = "Iteration", ylab = "ZN Value")
+```
+
+```{r}
+plot(posterior_samples_1[, 4], type = "l", xlab = "Iteration", ylab = "INDUS Value")
+```
+
+```{r}
+plot(posterior_samples_1[, 5], type = "l", xlab = "Iteration", ylab = "CHAS Value")
+```
+
+```{r}
+plot(posterior_samples_1[, 6], type = "l", xlab = "Iteration", ylab = "NOX Value")
+```
+
+```{r}
+plot(posterior_samples_1[, 7], type = "l", xlab = "Iteration", ylab = "RM Value")
+```
+
+```{r}
+plot(posterior_samples_1[, 8], type = "l", xlab = "Iteration", ylab = "AGE Value")
+```
+
+```{r}
+plot(posterior_samples_1[, 9], type = "l", xlab = "Iteration", ylab = "DIS Value")
+```
+
+```{r}
+plot(posterior_samples_1[, 10], type = "l", xlab = "Iteration", ylab = "RAD Value")
+```
+
+```{r}
+plot(posterior_samples_1[, 11], type = "l", xlab = "Iteration", ylab = "TAX Value")
+```
+
+```{r}
+plot(posterior_samples_1[, 12], type = "l", xlab = "Iteration", ylab = "PTRATIO Value")
+```
+
+```{r}
+plot(posterior_samples_1[, 13], type = "l", xlab = "Iteration", ylab = "B Value")
+```
+
+```{r}
+plot(posterior_samples_1[, 14], type = "l", xlab = "Iteration", ylab = "LSTAT Value")
+```
+
+
+```{r}
+# Calculate correlation matrix
+correlation_matrix <- cor(house)
+
+# Identify features highly correlated with MEDV
+highly_correlated_features <- names(correlation_matrix[abs(correlation_matrix[, "MEDV"]) > 0.5, "MEDV"])
+```
+
+
+```{r}
+k <- 10  # Number of folds
+fold_indices <- sample(rep(1:k, length.out = nrow(house)))
+predictions_2 <- vector("numeric", length = nrow(house))
+```
+
+
+```{r}
+# Set up the JAGS model
+model_string_2 <- "model {
+
+  # Likelihood
+  for (i in 1:N) {
+    y[i] ~ dnorm(mu[i], tau)
+    mu[i] <- beta[1] + beta[2]*X[i,1] + beta[3]*X[i,2] + beta[4]*X[i,3] +
+              beta[5]*X[i,4] + beta[6]*X[i,5] + beta[7]*X[i,6] +
+              beta[8]*X[i,7] + beta[9]*X[i,8] + beta[10]*X[i,9] +
+              beta[11]*X[i,10] + beta[12]*X[i,11] + beta[13]*X[i,12] +
+              beta[14]*X[i,13]
+  }
+  
+  # Priors
+  for (j in 1:14) {
+    beta[j] ~ dnorm(0, tau_beta)
+  }
+  
+  # Hyperparameters
+  tau <- 1 / sigma^2
+  sigma ~ dunif(0, 100)
+  tau_beta <- 1 / sigma_beta^2
+  sigma_beta ~ dunif(0, 100)
+}"
+```
+
+
+```{r}
+mse_values <- vector("numeric", length = k)
+
+for (fold in 1:k) {
+  # Split the data into training and testing sets for the current fold
+  train_data_2 <- house[fold_indices != fold, ]
+  test_data_2 <- house[fold_indices == fold, ]
+  
+  # Prepare the data for JAGS
+  N <- nrow(train_data_2)  # Number of observations
+  X <- as.matrix(train_data_2[, -14])  # Predictors matrix
+  y <- train_data_2[, 14]  # Response vector
+
+  # Run the model
+  model_2 <- jags.model(file = textConnection(model_string_2),
+                      data = list(N = N, X = X, y = y),
+                      n.chains = 1)
+  
+  # Burn-in
+  update(model_2, n.iter = 1000)
+  
+  # Extract the posterior samples
+  posterior_samples_2 <- coda.samples(model_2,
+                                      variable.names = c("beta"),
+                                      n.iter = 10000)
+  summary(posterior_samples_2)
+  
+  # Get the posterior mean of the parameters
+  beta_mean_2 <- colMeans(posterior_samples_2[[1]])
+  beta_mean_2 <- beta_mean_2[-1]
+  
+  # Prepare the test data for prediction
+  X_test_2 <- as.matrix(test_data_2[, -14])
+  y_test_2 <- test_data_2[, 14]
+  
+  # Make predictions on the test data
+  predictions_2 <- X_test_2 %*% beta_mean_2 + beta_mean_2[1]
+  
+  # Compute the mean squared error for the current fold
+  mse_values[fold] <- mean((y_test_2 - predictions_2)^2)
+}
+```
+
+```{r}
+print(mse_values)
+best_fold <- which.min(mse_values)
+print(best_fold)
+boxplot(mse_values, main = "MSE Values", ylab = "MSE")
+```
+
+
+```{r}
+library(dplyr)
+```
+
+
+```{r}
+# Define the search space for hyper-parameters
+hyperparams <- list(
+  sigma = seq(0.1, 10, length.out = 10)
+)
+```
+
+
+```{r}
+run_model <- function(hyperparams) {
+  
+  # Define the model with hyper-parameters
+  model_string_3 <- "model {
+  
+    # Likelihood
+    for (i in 1:N) {
+      y[i] ~ dnorm(mu[i], tau)
+      mu[i] <- beta[1] + beta[2]*X[i,1] + beta[3]*X[i,2] + beta[4]*X[i,3] +
+                beta[5]*X[i,4] + beta[6]*X[i,5] + beta[7]*X[i,6] +
+                beta[8]*X[i,7] + beta[9]*X[i,8] + beta[10]*X[i,9] +
+                beta[11]*X[i,10] + beta[12]*X[i,11] + beta[13]*X[i,12] +
+                beta[14]*X[i,13]
+    }
+    
+    # Priors
+    for (j in 1:14) {
+      beta[j] ~ dnorm(0, tau_beta)
+    }
+  
+  
+  
+    # Hyper-parameters
+    tau <- 1 / sigma^2
+    sigma ~ dunif(0, 100)
+    tau_beta <- 1 / sigma_beta^2
+    sigma_beta ~ dunif(0, 100)
+  }"
+
+  
+  # Prepare the data for JAGS
+  X <- as.matrix(house[, -14])      # Predictor variables
+  y <- house[, 14]                  # Response variable
+  N <- nrow(house)                  # Number of data points
+
+  
+  # Compile the JAGS model
+  model_3 <- jags.model(file = textConnection(model_string_3),
+                        data = list(X = X, y = y, N = N))
+
+  # Run the JAGS model
+    update(model_3, n.iter = 1000)
+    posterior_samples_3 <- coda.samples(model_3,
+                              variable.names = c("beta", "sigma"),
+                              n.iter = 10000)
+    
+    posterior_samples_3 <- as.matrix(posterior_samples_3[[1]])
+
+    
+  # Extract the posterior samples
+    beta_samples_3 <- posterior_samples_3[, 1:14]
+    sigma_samples_3 <- posterior_samples_3[, 15]
+    
+  # Calculate the mean
+  beta_mean_3 <- colMeans(beta_samples_3)
+  sigma_mean_3 <- mean(sigma_samples_3)
+  
+  # Return the mean of beta and sigma samples
+  list(beta_mean = beta_mean_3, sigma_mean = sigma_mean_3)
+}
+```
+
+
+```{r}
+# Perform hyper-parameter tuning
+tuning_results <- lapply(hyperparams, run_model)
+```
+
+
+```{r}
+sigma_mean_3 <- tuning_results$sigma$sigma_mean
+beta_mean_3 <- as.matrix(tuning_results$sigma$beta_mean)
+
+print(sigma_mean_3)
+print(beta_mean_3)
+```
+
+
+```{r}
+# Set up the JAGS model
+model_string_4 <- "model {
+
+  # Likelihood
+  for (i in 1:N) {
+    y[i] ~ dnorm(mu[i], tau)
+    mu[i] <- beta[1] + beta[2]*crim[i] + beta[3]*zn[i] + beta[4]*indus[i] +
+              beta[5]*chas[i] + beta[6]*nox[i] + beta[7]*rm[i] +
+              beta[8]*age[i] + beta[9]*dis[i] + beta[10]*rad[i] +
+              beta[11]*tax[i] + beta[12]*ptratio[i] + beta[13]*b[i] +
+              beta[14]*lstat[i]
+  }
+  
+  # Hyperparameters
+  tau <- 1 / sigma^2
+  sigma <- 4.810038
+  
+}"
+```
+
+
+```{r}
+# Prepare the data as a list
+house_list_4 <- list(crim = house$CRIM,
+             zn = house$ZN,
+             indus = house$INDUS,
+             chas = house$CHAS,
+             nox = house$NOX,
+             rm = house$RM,
+             age = house$AGE,
+             dis = house$DIS,
+             rad = house$RAD,
+             tax = house$TAX,
+             ptratio = house$PTRATIO,
+             b = house$B,
+             lstat = house$LSTAT,
+             y = house$MEDV,
+             N = nrow(house),
+             beta = as.vector(beta_mean_3))
+```
+
+
+```{r}
+# Run the MCMC chain
+model_4 <- jags.model(file = textConnection(model_string_4),
+                    data = house_list_4,
+                    n.chains = 1)
+```
+
+```{r}
+# Burn-in
+update(model_4, n.iter = 1000)
+
+# Run
+posterior_samples_4 <- coda.samples(model_4,
+                             variable.names = c("beta"),
+                             n.iter = 10000)
+```
+
+
+```{r}
+# Analyze the posterior samples
+summary(posterior_samples_4)
+```
+
+
+```{r}
+# Split the data into training and testing sets
+train_data_4 <- house[1:350, ]
+test_data_4 <- house[351:506, ]
+predictions_4 <- vector("numeric", length = nrow(house))
+  
+  
+# Prepare the test data for prediction
+X_test_4 <- as.matrix(test_data_4[, -14])
+y_test_4 <- test_data_4[, 14]
+  
+beta_mean_4 <- beta_mean_3[-1, ]
+  
+# Make predictions on the test data
+predictions_4 <- X_test_4 %*% beta_mean_4 + beta_mean_3[1, ]
+  
+# Compute the mean squared error for the current fold
+mse_value_5 <- mean((y_test_4 - predictions_4)^2)
+```
+
+
+```{r}
+print(mse_value_5)
+```
+
