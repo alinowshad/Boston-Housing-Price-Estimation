@@ -32,3 +32,5 @@ offers a diverse set of variables, including crime rates, land zoning, air pollu
 of rooms, and socioeconomic indicators. By analyzing the relationships between these predictors and
 the target variable, we can gain insights into the factors that influence housing prices and develop a
 predictive model to estimate home values for future observations.
+
+* Note: This project is completed by Fateme Hajizadekiakalaye, Ali Noshad and Ana Drmic for the course of Bayesian Learning and Monto Carlo Simulation at Politecnico di Milano.
